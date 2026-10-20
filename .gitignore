@@ -1,0 +1,33 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Terraform cache, state, plans, and local CLI configuration
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+.terraformrc
+terraform.rc
+
+# Local Terraform inputs; publish sanitized examples separately
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+
+# Local credentials and environment files
+.aws/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
