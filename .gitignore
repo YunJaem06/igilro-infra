@@ -18,6 +18,9 @@ terraform.rc
 *.tfvars.json
 !*.tfvars.example
 !*.tfvars.json.example
+backend.hcl
+*.backend.hcl
+/bootstrap/backend.tf
 
 # Local credentials and environment files
 .aws/

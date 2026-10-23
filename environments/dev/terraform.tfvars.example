@@ -1,0 +1,6 @@
+aws_account_id     = "123456789012" # Replace with your AWS account ID.
+aws_region         = "ap-northeast-2"
+project_name       = "igilro"
+vpc_cidr           = "10.42.0.0/16"
+availability_zones = ["ap-northeast-2a", "ap-northeast-2c"]
+nat_gateway_mode   = "single"
