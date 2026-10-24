@@ -4,7 +4,7 @@
 
 ## 구현 범위
 
-첫 단계인 개발 환경의 기반 코드를 구현했습니다. 실제 AWS 자원은 아직 생성하지 않았습니다.
+개발 기반과 RDS/PostGIS 준비·초기화 코드를 구현했습니다. 실제 AWS 자원은 아직 생성하지 않았습니다.
 
 | 구성 | 상태 |
 | --- | --- |
@@ -13,9 +13,10 @@
 | 접근 규칙 | 인터넷 → ALB 80/443 → 앱 8080 → DB 5432, 관리 포트 8081 차단 |
 | 서버 이미지 저장소 | 환경별 ECR, 태그 변경 금지, push 검사, 태그 없는 이미지 정리 |
 | 로컬/CI 검증 | Terraform fmt/validate, AWS 모의 provider 테스트 |
-| 다음 단계 | RDS/PostGIS, ECS, ALB, 도메인/HTTPS, 비밀값과 로그, OIDC 배포 |
+| DB와 초기화 | 사설 RDS, TLS, Secrets Manager, PostGIS/계정 준비, 일회성 Flyway |
+| 다음 단계 | ECS, ALB, 도메인/HTTPS, 로그 연결, OIDC 배포 |
 
-ALB·ECS·RDS는 아직 생성하지 않습니다. 네트워크 모듈은 다음 단계가 연결할 서브넷과 보안 그룹을 준비합니다. 아직 API 접속 주소가 출력되지 않는 것이 정상입니다.
+dev 구성에는 RDS가 포함됩니다. ALB·ECS는 후속 범위여서 API 주소는 아직 출력하지 않습니다. DB 생성 후 [초기화 절차](docs/database-initialization.md)를 진행합니다.
 
 ## 구조
 
@@ -24,6 +25,9 @@ bootstrap/                   # 공용 Terraform 상태 저장소
 environments/dev/            # 개발 환경 조합, 독립된 상태 파일
 modules/network/             # VPC, 서브넷, 라우팅, 보안 그룹
 modules/ecr/                 # 서버 이미지 저장소
+modules/database/            # 사설 RDS, secret metadata, 접근 정책
+scripts/                     # PostGIS/계정 준비와 Flyway 실행
+docker/database-bootstrap/   # non-root 초기화 이미지
 .github/workflows/terraform.yml
 ```
 
@@ -35,7 +39,7 @@ provider 다운로드를 위한 인터넷 연결과 Terraform만 필요합니다
 
 ```powershell
 terraform fmt -check -recursive
-$directories = @('bootstrap', 'modules/network', 'modules/ecr', 'environments/dev')
+$directories = @('bootstrap', 'modules/network', 'modules/ecr', 'modules/database', 'environments/dev')
 foreach ($directory in $directories) {
     terraform "-chdir=$directory" init -backend=false -input=false -lockfile=readonly
     if ($LASTEXITCODE -ne 0) { throw "init failed: $directory" }
@@ -48,7 +52,7 @@ foreach ($directory in $directories) {
 
 테스트는 `mock_provider "aws"`만 사용합니다. 테스트의 `command = apply`는 모의 provider의 가상 상태만 변경하며 AWS API를 호출하거나 자원을 만들지 않습니다. 기본 상태 보호, 사설 네트워크 경계, NAT 모드 전환, 입력 검증과 개발 환경 연결을 확인합니다. 실제 AWS 권한·리전 가용성·할당량·배포 성공까지 보장하지는 않습니다.
 
-CI는 동일한 검증만 실행합니다. AWS 인증, 실제 plan/apply, 이미지 push와 배포는 아직 자동화하지 않습니다.
+CI는 Terraform 검증과 Python 단위·TLS PostGIS/Flyway 통합 테스트, 초기화 이미지 빌드를 수행합니다. AWS 인증, 실제 plan/apply, 이미지 push와 배포는 아직 자동화하지 않습니다.
 
 ## 실제 적용 준비
 
@@ -89,7 +93,7 @@ terraform -chdir=bootstrap state list
 
 `bootstrap/backend.tf`는 최초 생성 순환 의존성을 피하기 위한 로컬 설정입니다. 다른 컴퓨터에서는 기존 bootstrap 상태를 사용할 때 위 예시 파일들을 먼저 준비하고 `init "-backend-config=backend.hcl"`로 연결합니다. 이미 생성된 버킷에 새 로컬 상태로 `apply`하지 않습니다.
 
-### 2. 개발 네트워크와 ECR 생성
+### 2. 개발 네트워크·ECR·RDS 생성
 
 ```powershell
 Copy-Item environments/dev/terraform.tfvars.example environments/dev/terraform.tfvars
@@ -127,7 +131,7 @@ terraform -chdir=environments/dev output
 | Flyway | 앱 계정과 별개로 마이그레이션 권한을 검토 |
 | 이미지 식별 | 서버 커밋 SHA 태그 및 배포 digest |
 
-RDS/PostGIS 초기화와 OSM 데이터 적재는 DB 생성과 별개입니다. 실제 그래프 적재 전 경로 검색은 `ROUTING_DATA_UNAVAILABLE`을 반환합니다. 건물 데이터 적재는 그늘 평가 단계에서 추가합니다.
+[RDS/PostGIS 초기화와 Flyway 실행](docs/database-initialization.md)은 DB 생성 후 별도 작업입니다. prod 앱은 Flyway를 끄고 배포 전 일회성 task가 migration을 실행합니다. OSM·건물 적재도 별도 작업이며 그래프 적재 전 경로 검색은 `ROUTING_DATA_UNAVAILABLE`을 반환합니다.
 
 ## 파일 관리와 참고
 
