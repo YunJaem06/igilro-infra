@@ -37,7 +37,7 @@ jobs:
           AWS_EC2_METADATA_DISABLED: 'true'
         run: |
           set -euo pipefail
-          for directory in bootstrap modules/network modules/ecr modules/database environments/dev; do
+          for directory in bootstrap modules/network modules/ecr modules/database modules/ecs modules/github-deployment environments/dev; do
             terraform -chdir="$directory" init -backend=false -input=false -lockfile=readonly
             terraform -chdir="$directory" validate
             terraform -chdir="$directory" test -no-color
