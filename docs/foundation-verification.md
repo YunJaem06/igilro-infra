@@ -49,3 +49,22 @@
 ## 남은 실제 배포 검증
 
 AWS 계정 권한, AZ 가용성, 서비스 할당량, 비용과 실제 계정에서의 원격 상태·plan/apply는 확인하지 않았습니다. RDS/PostGIS 권한·TLS, ECS 실행, ALB/도메인/HTTPS, 비밀값과 로그, OIDC 배포는 다음 단계입니다. 실제 OSM·건물 자료는 적재하지 않았습니다.
+
+## Apple Silicon 재점검 — 2026-10-24
+
+Mac의 Terraform CLI가 설치되어 있지 않아 공식 Terraform 1.17.0 darwin_arm64 파일을 임시 디렉터리에 다운로드하고 배포 SHA256을 확인했습니다. 실제 AWS 자격 증명이나 원격 backend를 사용하지 않고 저장소의 임시 복사본에서 검증했습니다.
+
+기존 잠금 파일에는 Windows AMD64/Linux AMD64의 `h1` 체크섬만 기록되어 있었습니다. Apple Silicon에서 `init -backend=false -lockfile=readonly`는 완료됐지만, 이어지는 `validate`가 cached package checksum 불일치로 실패하는 것을 재현했습니다.
+
+공식 `terraform providers lock -platform=darwin_arm64`로 HashiCorp 서명과 Mac provider 체크섬을 확인했습니다. 같은 AWS provider 6.70.0을 사용하는 bootstrap/network/ecr/dev의 잠금 파일 4개에 확인된 `h1` 한 줄씩 추가했습니다. 기존 버전과 Windows/Linux 체크섬을 유지했습니다.
+
+보완한 잠금 파일로 다음 검증이 모두 통과했습니다.
+
+- `terraform fmt -check -recursive`.
+- bootstrap, modules/network, modules/ecr, environments/dev의 `init -backend=false -input=false -lockfile=readonly`와 `validate`.
+- AWS 모의 provider 테스트 8개: bootstrap 2 / network 4 / ecr 1 / dev 1. 실패·오류·건너뜀 0개.
+- 서버의 prod 앱 포트 8080, ALB health 경로 `/api/v1/health`, 관리 포트 8081 비공개와 DB 환경 변수 계약을 인프라 설정·문서와 대조했습니다.
+
+가져온 커밋의 원격 CI도 성공했습니다: [인프라 0cdb2f9](https://github.com/YunJaem06/igilro-infra/actions/runs/39916806746), [서버 6eeb67e](https://github.com/YunJaem06/igilro-server/actions/runs/39916774209). 이 CI 결과는 Mac 체크섬 보완 이전 커밋 기준이며, 보완 내용은 위 로컬 검증으로 확인했습니다.
+
+이 점검에서 실제 AWS 자원 생성이나 배포는 수행하지 않았습니다. 현재 구현은 상태 저장소·네트워크·보안 그룹·ECR 기반이며, RDS/PostGIS·ECS·ALB·HTTPS·비밀값/로그·OIDC 배포는 후속 범위입니다.

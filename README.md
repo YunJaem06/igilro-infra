@@ -27,7 +27,7 @@ modules/ecr/                 # 서버 이미지 저장소
 .github/workflows/terraform.yml
 ```
 
-Terraform은 `.terraform-version`에 지정한 1.17.0으로 검증합니다. 코드의 최소 버전은 S3 네이티브 잠금을 지원하는 1.10이며, AWS provider는 6.x입니다. `.terraform.lock.hcl`은 각 검증 디렉터리에 포함하며 Windows AMD64와 Linux AMD64 체크섬을 기록합니다. provider 변경은 `init -upgrade` 후 의도적으로 검토합니다.
+Terraform은 `.terraform-version`에 지정한 1.17.0으로 검증합니다. 코드의 최소 버전은 S3 네이티브 잠금을 지원하는 1.10이며, AWS provider는 6.x입니다. `.terraform.lock.hcl`은 각 검증 디렉터리에 포함하며 macOS ARM64(Apple Silicon), Windows AMD64, Linux AMD64 체크섬을 기록합니다. provider 변경은 `init -upgrade` 후 의도적으로 검토합니다.
 
 ## AWS 없이 검증
 
@@ -134,6 +134,7 @@ RDS/PostGIS 초기화와 OSM 데이터 적재는 DB 생성과 별개입니다. �
 IDE 설정, 실제 `terraform.tfvars`, `backend.hcl`, 상태 파일과 plan, 자격 증명은 Git에서 제외합니다. 예시에는 실제 비밀값을 넣지 않습니다. `.terraform.lock.hcl`은 커밋합니다.
 
 - [Terraform S3 backend와 잠금](https://developer.hashicorp.com/terraform/language/backend/s3)
+- [Terraform 플랫폼별 provider 체크섬](https://developer.hashicorp.com/terraform/cli/commands/providers/lock)
 - [Terraform AWS 모의 테스트](https://developer.hashicorp.com/terraform/language/tests/mocking)
 - [ECR와 private subnet 통신](https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html)
 - [GitHub Actions OIDC와 AWS](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
