@@ -37,8 +37,51 @@ jobs:
           AWS_EC2_METADATA_DISABLED: 'true'
         run: |
           set -euo pipefail
-          for directory in bootstrap modules/network modules/ecr environments/dev; do
+          for directory in bootstrap modules/network modules/ecr modules/database environments/dev; do
             terraform -chdir="$directory" init -backend=false -input=false -lockfile=readonly
             terraform -chdir="$directory" validate
             terraform -chdir="$directory" test -no-color
           done
+
+  database-initialization:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout infrastructure
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Checkout server migration contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: YunJaem06/igilro-server
+          ref: 4c450655bd089011b02a952dbce03d2955191999
+          path: .test-server
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Set up Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install bootstrap dependencies and run unit tests
+        run: |
+          python -m pip install -r scripts/requirements-database.txt
+          python -m unittest discover -s scripts/tests -v
+      - name: Build test-only PostGIS and bootstrap images
+        run: |
+          docker build -t igilro-postgis:test -f tests/postgis/Dockerfile .
+          docker build -t igilro-database-bootstrap:test -f docker/database-bootstrap/Dockerfile .
+          docker run --rm igilro-database-bootstrap:test --help
+      - name: Build server migration artifact
+        working-directory: .test-server
+        run: bash gradlew bootJar --no-daemon --console=plain
+      - name: Verify TLS, role privileges, repeatable Flyway and production health
+        env:
+          DATABASE_TEST_IMAGE: igilro-postgis:test
+          IGILRO_SERVER_JAR: ${{ github.workspace }}/.test-server/build/libs/igilro-server-0.0.1-SNAPSHOT.jar
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: python -m unittest discover -s tests/integration -v
