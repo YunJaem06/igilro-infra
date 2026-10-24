@@ -1,0 +1,11 @@
+**
+!scripts
+!scripts/bootstrap_database.py
+!scripts/requirements-database.txt
+!docker
+!docker/database-bootstrap
+!docker/database-bootstrap/Dockerfile
+!docker/database-bootstrap/rds-ca.crt
+!tests
+!tests/postgis
+!tests/postgis/Dockerfile

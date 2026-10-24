@@ -34,3 +34,9 @@ backend.hcl
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local bootstrap metadata, Python tooling and cross-repository test checkout
+/database-bootstrap.json
+/.venv/
+__pycache__/
+/.test-server/
