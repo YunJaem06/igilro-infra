@@ -17,7 +17,7 @@
 | migration/import | public DDL·소유 테이블 변경 | migration secret 조회 |
 | 앱 | CONNECT, public USAGE, 테이블 SELECT | application secret 조회 |
 
-작업은 VPC application 서브넷·SG 또는 VPN 등 DB 사설망 경로가 있는 호스트에서 실행합니다. DB는 인터넷에 공개하지 않습니다. Secrets Manager HTTPS에는 기존 NAT 경로를 사용합니다. ECS task/service는 후속 구현이며 이번 모듈은 사용할 정책 ARN·환경·secret selector를 출력합니다.
+작업은 VPC application 서브넷·SG 또는 VPN 등 DB 사설망 경로가 있는 호스트에서 실행합니다. DB는 인터넷에 공개하지 않습니다. Secrets Manager HTTPS에는 기존 NAT 경로를 사용합니다. [ECS 배포 파이프라인](ecs-deployment.md)은 출력된 정책 ARN·환경·secret selector를 연결해 private Fargate task로 실행합니다. 아래 독립 실행 도구는 사설망 경로가 있는 운영 호스트에서도 사용할 수 있습니다.
 
 RDS 관리자는 rds_superuser 권한을 사용하며 진짜 PostgreSQL superuser로 가정하지 않습니다. PostGIS는 관리자가 설치하고 Flyway 테이블 권한은 소유자인 migrator로 설정합니다. V1의 CREATE EXTENSION IF NOT EXISTS는 사전 설치된 확장을 재사용합니다. V1~V3 SQL은 서버 저장소가 소유하며 복제하지 않습니다.
 
@@ -51,10 +51,10 @@ docker build -t igilro-database-bootstrap:local -f docker/database-bootstrap/Doc
 docker run --rm igilro-database-bootstrap:local --help
 ```
 
-후속 ECS 초기화 task에는 IGILRO_DATABASE_CONFIG 환경으로 database_bootstrap JSON과 bootstrap task role 정책을 주고, command를 다음과 같이 설정합니다.
+ECS 모듈은 DATABASE_BOOTSTRAP_CONFIG 환경으로 database_bootstrap JSON과 bootstrap task role 정책을 주고, command를 다음과 같이 설정합니다.
 
 ```json
-["--config-env", "IGILRO_DATABASE_CONFIG", "--ssl-root-cert", "/app/certs/rds-ca.pem"]
+["--config-env", "DATABASE_BOOTSTRAP_CONFIG", "--ssl-root-cert", "/app/certs/rds-ca.pem"]
 ```
 
 ## 일회성 Flyway

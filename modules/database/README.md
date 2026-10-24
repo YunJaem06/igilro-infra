@@ -9,7 +9,7 @@ DB 전용 서브넷에 RDS PostgreSQL 17을 생성합니다. PostGIS와 역할 �
 - 관리자 비밀번호는 RDS/Secrets Manager가 관리합니다. 앱/migration secret은 metadata만 생성합니다. secret version, password 변수, secret value data source가 없으므로 비밀번호를 Terraform 상태에 넣지 않습니다.
 - 관리자: PostGIS·계정 준비 / migrator: DDL·데이터 적재 / app: 현재 경로 API의 SELECT. 쓰기 기능을 추가할 때 권한을 확장합니다.
 
-bootstrap_config 출력은 endpoint·역할 이름·secret ARN만 포함합니다. secret_policy_arns.bootstrap은 초기화 task role에, application/migration 정책은 각 ECS execution role에 연결합니다. ECR·로그 권한과 실제 task/service는 후속 ECS 모듈 범위입니다.
+bootstrap_config 출력은 endpoint·역할 이름·secret ARN만 포함합니다. secret_policy_arns.bootstrap은 초기화 task role에, application/migration 정책은 각 ECS execution role에 연결합니다. [ECS 모듈](../ecs/README.md)이 ECR·로그 권한과 실제 task/service를 구성합니다.
 
 server_task_configuration은 환경 변수와 Secrets Manager JSON-key selector입니다. 앱은 Flyway를 끄고 migration은 같은 이미지에 SPRING_MAIN_WEB_APPLICATION_TYPE=none, SPRING_FLYWAY_ENABLED=true를 설정합니다. JSON-key 주입은 Fargate Linux platform 1.4.0 이상을 사용합니다.
 

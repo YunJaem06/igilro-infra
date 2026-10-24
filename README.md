@@ -4,7 +4,7 @@
 
 ## 구현 범위
 
-개발 기반과 RDS/PostGIS 준비·초기화 코드를 구현했습니다. 실제 AWS 자원은 아직 생성하지 않았습니다.
+개발 기반, RDS/PostGIS 초기화, ECS Fargate·ALB와 서버 배포 연결 코드를 구현했습니다. 실제 AWS 자원은 아직 생성하지 않았습니다.
 
 | 구성 | 상태 |
 | --- | --- |
@@ -14,9 +14,11 @@
 | 서버 이미지 저장소 | 환경별 ECR, 태그 변경 금지, push 검사, 태그 없는 이미지 정리 |
 | 로컬/CI 검증 | Terraform fmt/validate, AWS 모의 provider 테스트 |
 | DB와 초기화 | 사설 RDS, TLS, Secrets Manager, PostGIS/계정 준비, 일회성 Flyway |
-| 다음 단계 | ECS, ALB, 도메인/HTTPS, 로그 연결, OIDC 배포 |
+| 런타임 | private Fargate, ALB health, 선택적 ACM HTTPS, CloudWatch 로그 |
+| 배포 | GitHub OIDC 역할 분리, 이미지 발행, DB 초기화/Flyway, 서비스 갱신/복구 |
+| 다음 단계 | 실제 AWS 적용·검증, 도메인/인증서 발급, 자동 확장·운영 알람 |
 
-dev 구성에는 RDS가 포함됩니다. ALB·ECS는 후속 범위여서 API 주소는 아직 출력하지 않습니다. DB 생성 후 [초기화 절차](docs/database-initialization.md)를 진행합니다.
+dev 구성은 네트워크·ECR·RDS·ALB·ECS 기반을 함께 생성합니다. [최초 배포 절차](docs/ecs-deployment.md)에 따라 이미지를 먼저 발행한 뒤 정지된 서비스를 생성하고 DB 초기화/Flyway 성공 후 활성화합니다. 기본 listener는 503이며 HTTPS 또는 명시적 개발 HTTP를 설정해야 API 주소를 출력합니다. 독립 실행용 [DB 초기화 절차](docs/database-initialization.md)도 제공합니다.
 
 ## 구조
 
@@ -26,7 +28,9 @@ environments/dev/            # 개발 환경 조합, 독립된 상태 파일
 modules/network/             # VPC, 서브넷, 라우팅, 보안 그룹
 modules/ecr/                 # 서버 이미지 저장소
 modules/database/            # 사설 RDS, secret metadata, 접근 정책
-scripts/                     # PostGIS/계정 준비와 Flyway 실행
+modules/ecs/                 # Fargate, ALB, 로그, task template/SSM
+modules/github-deployment/   # OIDC와 일반 배포/최초 초기화 역할
+scripts/                     # PostGIS/Flyway와 이미지 발행·ECS 배포
 docker/database-bootstrap/   # non-root 초기화 이미지
 .github/workflows/terraform.yml
 ```
@@ -39,7 +43,7 @@ provider 다운로드를 위한 인터넷 연결과 Terraform만 필요합니다
 
 ```powershell
 terraform fmt -check -recursive
-$directories = @('bootstrap', 'modules/network', 'modules/ecr', 'modules/database', 'environments/dev')
+$directories = @('bootstrap', 'modules/network', 'modules/ecr', 'modules/database', 'modules/ecs', 'modules/github-deployment', 'environments/dev')
 foreach ($directory in $directories) {
     terraform "-chdir=$directory" init -backend=false -input=false -lockfile=readonly
     if ($LASTEXITCODE -ne 0) { throw "init failed: $directory" }
@@ -52,7 +56,7 @@ foreach ($directory in $directories) {
 
 테스트는 `mock_provider "aws"`만 사용합니다. 테스트의 `command = apply`는 모의 provider의 가상 상태만 변경하며 AWS API를 호출하거나 자원을 만들지 않습니다. 기본 상태 보호, 사설 네트워크 경계, NAT 모드 전환, 입력 검증과 개발 환경 연결을 확인합니다. 실제 AWS 권한·리전 가용성·할당량·배포 성공까지 보장하지는 않습니다.
 
-CI는 Terraform 검증과 Python 단위·TLS PostGIS/Flyway 통합 테스트, 초기화 이미지 빌드를 수행합니다. AWS 인증, 실제 plan/apply, 이미지 push와 배포는 아직 자동화하지 않습니다.
+인프라 CI는 Terraform 검증과 Python 단위·TLS PostGIS/Flyway 통합 테스트, 초기화 이미지 빌드를 수행하며 AWS 자격 증명을 사용하지 않습니다. 서버 저장소의 수동 deploy workflow가 OIDC 인증·이미지 push·일회성 작업·서비스 배포를 수행합니다. 실제 Terraform plan/apply는 별도 수동 작업입니다.
 
 ## 실제 적용 준비
 
@@ -107,13 +111,18 @@ terraform -chdir=environments/dev output
 
 상태 경로는 bootstrap과 dev가 각각 `bootstrap/terraform.tfstate`, `dev/terraform.tfstate`로 다릅니다. 둘 다 `use_lockfile = true`로 S3 잠금을 사용합니다. 별도 DynamoDB 잠금 테이블은 만들지 않습니다. 백엔드 역할에는 대상 경로의 ListBucket/GetObject/PutObject와 `.tflock` 객체의 GetObject/PutObject/DeleteObject 권한이 필요합니다. 상태 파일 삭제 권한은 일반 적용에 필요하지 않습니다.
 
-### 3. 다음 배포 단계로 전달할 값
+### 3. 서버 배포에 전달할 값
 
 - `public_subnet_ids`: 두 AZ의 ALB 배치 위치
 - `application_subnet_ids`: 두 AZ의 private ECS 배치 위치
 - `database_subnet_ids`: 인터넷 기본 경로 없는 RDS subnet group 위치
 - `security_group_ids`: ALB, 앱, DB 접근 경계
 - `server_repository_url` / `server_repository_arn`: 이미지 업로드와 IAM 정책
+- `deployment_parameter_name`: 비밀값 없는 task template과 실행 설정
+- `github_deploy_role_arn` / `github_bootstrap_role_arn`: 환경별 GitHub OIDC 역할
+- `alb_dns_name` / `alb_zone_id` / `api_url`: DNS 연결과 health 확인
+
+이후 [ECS 최초 배포 절차](docs/ecs-deployment.md)에 따라 GitHub 변수 설정 → publish → 최초 image digest로 정지 서비스 생성 → initialize-and-deploy를 진행합니다.
 
 개발 환경 NAT는 첫 번째 AZ에 하나만 생성합니다. 해당 AZ 장애 시 다른 AZ의 앱 외부 통신도 영향을 받습니다. `nat_gateway_mode = "per_az"`로 바꾸면 각 AZ의 게이트웨이를 사용합니다. 비용과 목표 가용성을 정한 뒤 선택합니다. NAT는 ECR API/registry, 로그, 비밀값 서비스의 HTTPS 통신 경로도 제공합니다.
 
@@ -121,14 +130,14 @@ terraform -chdir=environments/dev output
 
 서버 Dockerfile은 Java 21 다단계 빌드이며, 실행은 non-root 사용자입니다. 서버 이미지의 기본 프로필은 `prod`입니다.
 
-| 설정 | 다음 ECS 단계에서 사용할 값 |
+| 설정 | ECS 실행 값 |
 | --- | --- |
 | 앱 포트 | `8080` |
 | ALB health path | `/api/v1/health` |
 | 관리 포트 | `8081`, 공개하지 않음 |
 | Spring profile | `SPRING_PROFILES_ACTIVE=prod` |
 | DB | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`를 외부에서 주입 |
-| Flyway | 앱 계정과 별개로 마이그레이션 권한을 검토 |
+| Flyway | 앱은 비활성화, 동일 digest의 별도 migration 작업에서 실행 |
 | 이미지 식별 | 서버 커밋 SHA 태그 및 배포 digest |
 
 [RDS/PostGIS 초기화와 Flyway 실행](docs/database-initialization.md)은 DB 생성 후 별도 작업입니다. prod 앱은 Flyway를 끄고 배포 전 일회성 task가 migration을 실행합니다. OSM·건물 적재도 별도 작업이며 그래프 적재 전 경로 검색은 `ROUTING_DATA_UNAVAILABLE`을 반환합니다.
@@ -144,3 +153,5 @@ IDE 설정, 실제 `terraform.tfvars`, `backend.hcl`, 상태 파일과 plan, 자
 - [GitHub Actions OIDC와 AWS](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
 
 [기반 구현 검증 기록](docs/foundation-verification.md)
+
+[ECS/ALB·배포 파이프라인 검증 기록](docs/ecs-verification.md)
