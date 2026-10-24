@@ -13,3 +13,12 @@ database_max_allocated_storage       = 100
 database_multi_az                    = false
 database_deletion_protection         = true
 database_final_snapshot_identifier   = null
+
+# First apply with null, publish images, then pin the server digest and apply again.
+# Keep this initial digest unchanged after activation; CI manages running revisions.
+initial_server_image_digest = null
+certificate_arn            = null
+api_domain_name            = null
+allow_development_http     = false # Explicitly opt in only for temporary development HTTP.
+alb_deletion_protection    = true
+github_oidc_provider_arn   = null # Reuse existing account-wide GitHub OIDC provider if present.

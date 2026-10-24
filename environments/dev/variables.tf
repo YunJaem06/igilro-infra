@@ -84,3 +84,34 @@ variable "database_final_snapshot_identifier" {
   default     = null
   description = "Unique final snapshot name for an intentional removal."
 }
+
+variable "initial_server_image_digest" {
+  type        = string
+  default     = null
+  description = "Keep null for foundation apply; after image publish, set the immutable digest to create an idle service."
+}
+variable "certificate_arn" {
+  type        = string
+  default     = null
+  description = "Issued ACM certificate ARN in ap-northeast-2 for the API domain."
+}
+variable "api_domain_name" {
+  type        = string
+  default     = null
+  description = "API domain covered by the certificate and pointing to the ALB."
+}
+variable "allow_development_http" {
+  type        = bool
+  default     = false
+  description = "Explicit opt-in for temporary plain HTTP development checks."
+}
+variable "alb_deletion_protection" {
+  type        = bool
+  default     = true
+  description = "Protect the public load balancer from accidental deletion."
+}
+variable "github_oidc_provider_arn" {
+  type        = string
+  default     = null
+  description = "Reuse an existing GitHub OIDC provider in this AWS account, if present."
+}

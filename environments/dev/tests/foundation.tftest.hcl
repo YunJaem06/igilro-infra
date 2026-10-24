@@ -1,4 +1,24 @@
 mock_provider "aws" {
+
+  mock_resource "aws_lb" {
+    defaults = { arn = "arn:aws:elasticloadbalancing:ap-northeast-2:123456789012:loadbalancer/app/igilro-test/1234567890123456" }
+  }
+  mock_resource "aws_lb_target_group" {
+    defaults = { arn = "arn:aws:elasticloadbalancing:ap-northeast-2:123456789012:targetgroup/igilro-test/1234567890123456" }
+  }
+  mock_resource "aws_ecs_cluster" {
+    defaults = { arn = "arn:aws:ecs:ap-northeast-2:123456789012:cluster/igilro-test" }
+  }
+  mock_resource "aws_iam_policy" {
+    defaults = { arn = "arn:aws:iam::123456789012:policy/igilro-test" }
+  }
+  mock_resource "aws_iam_role" {
+    defaults = { arn = "arn:aws:iam::123456789012:role/igilro-test" }
+  }
+  mock_resource "aws_ecs_task_definition" {
+    defaults = { arn = "arn:aws:ecs:ap-northeast-2:123456789012:task-definition/igilro-test:1" }
+  }
+
   mock_resource "aws_db_instance" {
     defaults = {
       master_user_secret = [{
@@ -36,5 +56,16 @@ run "development_foundation_wiring" {
       output.database_server_tasks.application.environment.SPRING_FLYWAY_ENABLED == "false"
     )
     error_message = "Dev database outputs must connect the private DB, separate secrets and migration settings."
+  }
+  assert {
+    condition = (
+      module.ecs.deployment_config.service_created == false &&
+      module.ecs.deployment_config.tasks.application.containerDefinitions[0].name == "server" &&
+      module.ecs.deployment_config.tasks.migration.containerDefinitions[0].name == "migration" &&
+      module.ecs.deployment_config.tasks.bootstrap.containerDefinitions[0].name == "bootstrap" &&
+      length(jsonencode(module.ecs.deployment_config)) <= 8192 &&
+      output.api_url == null && output.deployment_parameter_name == "/igilro-dev/deployment"
+    )
+    error_message = "Runtime must wire all three task templates into a bounded non-secret SSM configuration without activating the API."
   }
 }
