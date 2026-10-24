@@ -4,3 +4,12 @@ project_name       = "igilro"
 vpc_cidr           = "10.42.0.0/16"
 availability_zones = ["ap-northeast-2a", "ap-northeast-2c"]
 nat_gateway_mode   = "single"
+
+# Verify the available minor/class in ap-northeast-2 before apply.
+database_engine_version              = "17"
+database_instance_class              = "db.t4g.small"
+database_allocated_storage           = 20
+database_max_allocated_storage       = 100
+database_multi_az                    = false
+database_deletion_protection         = true
+database_final_snapshot_identifier   = null

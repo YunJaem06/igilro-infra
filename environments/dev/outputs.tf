@@ -42,3 +42,23 @@ output "server_repository_url" {
   description = "Server image push URL; use a Git commit SHA as the tag."
   value       = module.server_images.repository_url
 }
+
+output "database_instance_identifier" {
+  description = "Private PostgreSQL instance identifier."
+  value       = module.database.instance_identifier
+}
+
+output "database_bootstrap" {
+  description = "Non-secret initialization input: terraform output -json database_bootstrap."
+  value       = module.database.bootstrap_config
+}
+
+output "database_secret_policy_arns" {
+  description = "Policies for the future bootstrap task role and separate server/migration execution roles."
+  value       = module.database.secret_policy_arns
+}
+
+output "database_server_tasks" {
+  description = "DB environment variables and secret ARN selectors for the application and one-off Flyway tasks."
+  value       = module.database.server_task_configuration
+}

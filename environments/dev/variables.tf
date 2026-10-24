@@ -42,3 +42,45 @@ variable "nat_gateway_mode" {
   type        = string
   default     = "single"
 }
+
+variable "database_engine_version" {
+  type        = string
+  default     = "17"
+  description = "PostgreSQL 17 major, or an available 17.x minor verified in the target region."
+}
+
+variable "database_instance_class" {
+  type        = string
+  default     = "db.t4g.small"
+  description = "Development RDS class; confirm budget and regional availability before apply."
+}
+
+variable "database_allocated_storage" {
+  type        = number
+  default     = 20
+  description = "Initial RDS gp3 storage in GiB."
+}
+
+variable "database_max_allocated_storage" {
+  type        = number
+  default     = 100
+  description = "Maximum RDS autoscaling storage in GiB."
+}
+
+variable "database_multi_az" {
+  type        = bool
+  default     = false
+  description = "Enable only after deciding the development availability target."
+}
+
+variable "database_deletion_protection" {
+  type        = bool
+  default     = true
+  description = "Protect the RDS instance from accidental deletion."
+}
+
+variable "database_final_snapshot_identifier" {
+  type        = string
+  default     = null
+  description = "Unique final snapshot name for an intentional removal."
+}
